@@ -1,0 +1,146 @@
+#!/usr/bin/python3
+import sys
+import DupllicateFinder
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMessageBox, QGridLayout, QLineEdit, QLabel
+from PyQt5.QtWidgets import QComboBox, QCheckBox, QGroupBox, QTextEdit
+from PyQt5 import QtCore
+
+app = QApplication(sys.argv)
+widget = QWidget()
+button_title = "Hash File"
+click_count = 0
+criteria_column = QGroupBox(widget)
+criteria_column.setGeometry(QtCore.QRect(10, 10, 600, 400))
+results_column = QGroupBox(widget)
+results_column.setGeometry(QtCore.QRect(620, 10, 800, 400))
+
+top_menu = QGridLayout(criteria_column)
+results = QGridLayout(results_column)
+
+dupllicate_header_label = QLabel()
+dupllicate_header_label.wordWrap()
+dupllicate_header_label.setText("DupllicateFinder - a file-checksum-based duplicate file detector")
+dupllicate_header_label.move(20, 20)
+top_menu.addWidget(dupllicate_header_label)
+
+hash_algo_label = QLabel()
+hash_algo_label.move(20, 20)
+hash_algo_label.setText("sha256 (hash options and checkbox options do not work)")
+hash_algo_label.wordWrap()
+top_menu.addWidget(hash_algo_label)
+
+
+combo_box = QComboBox()
+combo_box.move(20, 20)
+combo_box.addItem("sha256")
+combo_box.addItem("md5")
+combo_box.addItem("sha1")
+combo_box.addItem("sha512")
+combo_box.setCurrentText("sha256")
+top_menu.addWidget(combo_box)
+
+path_field_label = QLabel()
+path_field_label.setText("Path of File to Hash: (single file mode)")
+path_field_label.wordWrap()
+path_field_label.move(40, 60)
+top_menu.addWidget(path_field_label)
+
+path_field = QLineEdit()
+path_field.setText("./README.md")
+path_field.move(40, 40)
+top_menu.addWidget(path_field)
+
+path_label = QTextEdit()
+path_label.wordWrapMode()
+example_hash = DupllicateFinder.digest_file(path_field.text())
+path_label.setText(str('./README.md - ' + example_hash))
+path_label.move(20, 20)
+results.addWidget(path_label)
+
+
+window_content = QPushButton()
+window_content.setText(button_title)
+top_menu.addWidget(window_content)
+
+soft_options = [
+    { 'title' : 'JSON Output Database File', 'option' : 'JSON_DB_OUTPUT', 'enabled' : 'no' },
+    { 'title' : 'SQLite3 Internal Database', 'option' : 'SQLITE_DB_INIT', 'enabled' : 'no' },
+    { 'title' : 'Log Activities in Software', 'option' : 'LOG_FS_ACTIVITY', 'enabled' : 'no' }
+]
+
+options_log_label = QLabel()
+options_log_label.move(20, 20)
+options_log_label.setText("For when the checkboxes change")
+top_menu.addWidget(options_log_label)
+
+
+def checkbox_checked(a):
+    print(a)
+
+
+def combo_box_change(entry_selected):
+    hash_algo_label.setText("    " + entry_selected)
+    hash_algo_label.wordWrap()
+
+
+def init_checkbox(item):
+    new_checkbox = QCheckBox()
+    new_checkbox.move(20, 20)
+    new_checkbox.setText(item['title'])
+    if item['enabled'] == 'yes':
+        new_checkbox.setChecked(True)
+    new_checkbox.option = item
+    new_checkbox.toggled.connect(checkbox_checked)
+    top_menu.addWidget(new_checkbox)
+
+
+def field_typed(text):
+    path_label.setText(text)
+
+
+def msg_box_clicked():
+    pass
+
+
+def button_clicked(event):
+    # if :
+    #     prompt = QMessageBox(widget)
+    #     prompt.setText("Action already being run.")
+    #     prompt.setWindowTitle("Already clicked this button.")
+    #     prompt.setStandardButtons(QMessageBox.Cancel)
+    #     return
+    # else:
+    prompt = QMessageBox(widget)
+    prompt.setIcon(QMessageBox.Information)
+    prompt.setText("Generate sha256sum of file?")
+    prompt.setWindowTitle("You clicked a button.")
+    prompt.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+    prompt.buttonClicked.connect(msg_box_clicked)
+    prompt_consent = prompt.exec()
+    if prompt_consent == QMessageBox.Ok:
+        try:
+            with open(path_field.text(), 'rb') as test_read:
+                test_read.close()
+                new_generated_hash = DupllicateFinder.digest_file(path_field.text())
+                path_label.setText(str(path_field.text() + ' - ' + new_generated_hash))
+        except IOError:
+            path_label.setText("Could not open test file")
+    else:
+        path_label.setText("Aborted.")
+
+
+def window():
+    window_content.clicked.connect(button_clicked)
+    path_field.textChanged.connect(field_typed)
+    combo_box.activated[str].connect(combo_box_change)
+    [init_checkbox(option) for option in soft_options]
+    window_content.move(20, 20)
+    widget.setGeometry(0, 0, 1440, 420)
+    widget.setWindowTitle("DEMO GUI - Dupllicate Finder - (Alpha UI Design | Single Hash Mode)")
+    widget.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    window()
+

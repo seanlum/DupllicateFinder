@@ -13,3 +13,15 @@
 - JSON as Temp Cache Data (`refactor on using Python3/Lib/json`)
 - Regular Expression search capabilities (`Python3/Lib/re`)
 
+### Dependencies
+```
+python3 - for the cli, library, and GUI
+python3-pyqt5 - for the GUI framework
+qtwayland5 - for older wayland environments
+```
+
+## Milestones
+```
+Transition from Python to C for easier native dependency management
+```
+
