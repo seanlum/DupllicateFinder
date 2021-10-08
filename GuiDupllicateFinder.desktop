@@ -1,9 +1,10 @@
 [Desktop Entry]
-Name=Dupllicate Finder
+Name="Dupllicate Finder"
 Comment="Dupllicate Finder the hash-based duplicate finder"
-Exec="/home/seanlum/Code/Python/DupllicateFinder/GuiDupllicateFinder"
+Exec=/usr/local/bin/GuiDupllicateFinder
+Icon=org.gnome.Terminal
 Type=Application
 Terminal=false
 Categories=Utility
-StartupNotify=false
+StartupNotify=yes
 Version=1.0
