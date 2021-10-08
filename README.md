@@ -17,8 +17,19 @@
 ```
 python3 - for the cli, library, and GUI
 python3-pyqt5 - for the GUI framework
-qtwayland5 - for older wayland environments
+qtwayland5 - (edge-case) for older wayland environments
 ```
+
+## Installation
+```
+git clone <http-repo|ssh-repo>
+# qtwayland5 is not required on all systems
+# sudo apt install qtwayland5
+./install.sh
+$ GuiDupllicateFinder
+$ DupllicateFinder
+```
+
 
 ## Milestones
 ```

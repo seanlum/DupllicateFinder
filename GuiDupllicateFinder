@@ -52,8 +52,7 @@ top_menu.addWidget(path_field)
 
 path_label = QTextEdit()
 path_label.wordWrapMode()
-example_hash = DupllicateFinder.digest_file(path_field.text())
-path_label.setText(str('./README.md - ' + example_hash))
+path_label.setText('')
 path_label.move(20, 20)
 results.addWidget(path_label)
 
