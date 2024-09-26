@@ -1,0 +1,2 @@
+DF_APPLICATION_LOG_LEVEL = 4
+DF_APPLICATION_LOG_FILENAME = 'dupllicate-finder-log.txt'
