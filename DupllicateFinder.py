@@ -20,8 +20,24 @@ def log_statement(log_verbosity=0, log_string='', log_end=None):
         else:
             print(log_string)
 
+def digest_get_instance(algorithm='sha256'):
+    if algorithm == 'md5':
+        return hashlib.md5()
+    elif algorithm == 'sha1':
+        return hashlib.sha1()
+    elif algorithm == 'sha224':
+        return hashlib.sha224()
+    elif algorithm == 'sha256':
+        return hashlib.sha256()
+    elif algorithm == 'sha384':
+        return hashlib.sha384()
+    elif algorithm == 'sha512':
+        return hashlib.sha512()
+    else:
+        os.error('Invalid algorithm')
+        exit()
 
-def digest_file(input_file_name=os.DirEntry):
+def digest_file(input_file_name=os.DirEntry, algorithm='sha256'):
     if input_file_name == '':
         os.error('Invalid file name')
         exit()
@@ -31,7 +47,7 @@ def digest_file(input_file_name=os.DirEntry):
                 dot_tick = 0
                 dot_tick_mod = (1024 * 2048) * 1.5
                 dot_tick_print_mod = 1024 * 32
-                hash_digest_algorithm = hashlib.sha256()
+                hash_digest_algorithm = digest_get_instance(algorithm)
                 log_statement(3, 'Hashing:\n.', log_end='')
                 for file_content_line in file_handle:
                     hash_digest_algorithm.update(file_content_line)
@@ -107,6 +123,7 @@ def add_hash_storage_entry(hash_storage, hash_value, dir_entry_object):
 def enumerate_directory(input_path_name=''):
     log_statement(2, str('Starting from: ' + input_path_name))
     hash_storage = {}
+    output_files = list()
     entries = scan_directory(input_path_name)
     processing_files = list()
     processing_files.extend(entries['files'])
@@ -120,8 +137,9 @@ def enumerate_directory(input_path_name=''):
                 os.error(file_in_analysis.path)
                 pass
             processing_files.remove(file_in_analysis)
-            log_statement(2, str('Inspecting:\t' + file_in_analysis.path))
-            add_hash_storage_entry(hash_storage, digest_file(file_in_analysis), file_in_analysis.path)
+            log_statement(2, str('Appending:\t' + file_in_analysis.path))
+            output_files.append(os.path.abspath(file_in_analysis.path))
+            ## add_hash_storage_entry(hash_storage, digest_file(file_in_analysis), file_in_analysis.path)
             processed_entries.append(file_in_analysis.path)
         for directory_entry in processing_directories:
             if item_in_list(directory_entry.path, processing_directories):
@@ -135,7 +153,7 @@ def enumerate_directory(input_path_name=''):
                 log_statement(3, 'Empty directory...')
             processing_directories.extend(new_entries['directories'])
             processing_files.extend(new_entries['files'])
-    return hash_storage
+    return output_files
 
 
 def find_duplicates_json(directory_to_search):
