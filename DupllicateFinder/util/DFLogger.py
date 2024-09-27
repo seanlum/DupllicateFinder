@@ -21,14 +21,19 @@ class DFLogger(metaclass=DFSingletonMeta):
         super().emit(record)
         self.flush()
 
-    def __init__(self, base_log_level):
+    def __init__(self, base_log_level, output='file'):
         print('DFLogger.__init__')
         self.log_level = base_log_level
         logging_level = logging.DEBUG
         logging_format = '%(asctime)s - %(levelname)s - %(message)s'
-        logging_handlers = [ DFFlushFileHandler(DFConfig.DF_APPLICATION_LOG_FILENAME, mode='w') ]
-        logging.basicConfig(level=logging_level, format=logging_format, handlers=logging_handlers)
-        self.log = logging
+        if output == 'file':
+            logging_handlers = [ DFFlushFileHandler(DFConfig.DF_APPLICATION_LOG_FILENAME, mode='w') ]
+            logging.basicConfig(level=logging_level, format=logging_format, handlers=logging_handlers)
+        elif output == 'stdout':
+            print('Using stdout')
+            logging.basicConfig(level=logging_level, format=logging_format)
+            logging.StreamHandler(sys.stdout)
+        self.log = logging.getLogger()
         print(self.log)
 
     def log_by_level(self, level, message):
