@@ -5,6 +5,7 @@ import hashlib
 import json
 import traceback
 import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
 import psutil
 import time
 import sqlite3
@@ -32,11 +33,13 @@ class DFScanner(metaclass=DFSingletonMeta):
         #self.temp_store = self.manager.list()
         # self.lock = multiprocessing.Lock()
         self.output_results = []
+        self.enum_pool = []
         self.temp_lim = 1000
-        self.process_limit = 100
-        self.task_limit = 10
+        self.process_limit = multiprocessing.cpu_count()
+        self.task_limit = 16
         self.max_open_files = 1000
         self.i = 0
+        self.hashed_files = 0
 
     def item_in_list(self, item_to_check, list_to_check):
         try:
@@ -100,11 +103,14 @@ class DFScanner(metaclass=DFSingletonMeta):
                 process.terminate()
                 self.processes.remove(process)
             
-    def digest_file(self, input_file_name, algorithm=None):
+    def digest_file(self, input_file_name, algorithm=None, chunk_size=1024*1024):
         self.log_statement(4, 'Processing: ' + input_file_name)
         algorithm = algorithm or self.hash_algorithm
         hash_ret_data = None
         try:
+            file_size_bytes = os.path.getsize(input_file_name)
+            file_size_mb = (file_size_bytes / 1024) / 1024 
+
             with open(input_file_name, 'br') as file_handle: 
                 self.log_statement(4, 'Opened ' + str(self.get_open_file_descriptors()))
                 """ may need this for a ticker later
@@ -113,10 +119,21 @@ class DFScanner(metaclass=DFSingletonMeta):
                 dot_tick_print_mod = 1024 * 32
                 """
                 hash_digest_algorithm = self.digest_get_instance(algorithm)
-                for file_content_line in file_handle:
-                    hash_digest_algorithm.update(file_content_line)
+                if file_size_bytes <= chunk_size:
+                    self.log_statement(3, 'Processing small file: ' + input_file_name)
+                    hash_digest_algorithm.update(file_handle.read())
+                elif chunk_size < file_size_bytes < (1024 * 1024 * 1024):
+                    self.log_statement(3, 'Processing medium file: ' + input_file_name)
+                    while chunk := file_handle.read(chunk_size):
+                        hash_digest_algorithm.update(chunk)
+                elif file_size_bytes >= (1024 * 1024 * 1024):
+                    self.log_statement(3, 'Processing large file: ' + input_file_name)
+                    while chunk := file_handle.read(1024 * 1024 * 100):
+                        hash_digest_algorithm.update(chunk)
+                # for file_content_line in file_handle:
+                    # hash_digest_algorithm.update(file_content_line)
                 hash_ret_data = hash_digest_algorithm.hexdigest()
-                self.log_statement(3, hash_ret_data + ' - ' + input_file_name)
+                self.log_statement(3, f"[ {file_size_mb:.2f} MB] " + hash_ret_data + ' - ' + input_file_name)
                 self.log_statement(4, 'Closed ' + str(self.get_open_file_descriptors()))
         except OSError:
             self.log_statement(4, 'Skipping: ' + input_file_name)
@@ -132,12 +149,13 @@ class DFScanner(metaclass=DFSingletonMeta):
             conn.execute('PRAGMA journal_mode=WAL;')
             conn.execute('CREATE TABLE IF NOT EXISTS paths (path TEXT PRIMARY KEY, hash_key TEXT);')
             count = conn.execute('SELECT COUNT(*) FROM paths').fetchone()[0]
-            self.log_statement(2, 'DB Worker: ' + str(count) + ' entries')
+            # self.log_statement(2, 'DB Worker: ' + str(self.hashed_files) + ' files hashed')
+            # self.log_statement(2, 'DB Worker: ' + str(count) + ' entries written to database')
             #print('Writing 100 DB Writes')
             cursor = conn.cursor()
             query = 'INSERT OR IGNORE INTO paths (path, hash_key) VALUES (?, ?)'
             cursor.executemany(query, temp_store)
-            self.log_statement(3, 'DB Worker: ' + str(len(temp_store)) + ' entries')
+            self.log_statement(2, 'DB Worker: ' + str(len(temp_store)) + ' entries executed')
             #print('Wrote 100 DB Writes')
             conn.commit()
             self.output_results[:] = []
@@ -152,11 +170,15 @@ class DFScanner(metaclass=DFSingletonMeta):
             self.log_statement(4, 'add hash storage lock')
             self.log_statement(3, '[' + str(len(self.temp_store)) +  '] ' + hash_value + ' - ' + dir_entry_object)
             self.temp_store.append((dir_entry_object, hash_value))
-            if len(self.temp_store) >= 250:
-                #print('Queued 100 DB writes')
-                self.db_worker(self.temp_store)
-                self.temp_store[:] = []
+            self.db_worker(self.temp_store)
+            self.temp_store[:] = []
     
+    def thread_function(self, entries):
+        with ThreadPoolExecutor(max_workers=self.task_limit) as executor:
+            for file_entry in entries:
+                future = executor.submit(self.digest_file, file_entry)
+                return future.result()
+
     def worker_function(self, entries):
         self.log_statement(4, 'self.worker_function')
         # temp_path = self.entry[0] + os.path.sep + filename
@@ -167,14 +189,15 @@ class DFScanner(metaclass=DFSingletonMeta):
             # self.log_statement(4, 'self.temp_path_store limit reached')
             self.log_statement(4, 'calling pool.starmap')
             #self.start_process_with_retry(self.digest_file, args=(filepath,))
-            results = pool.starmap(self.digest_file, [ (digestfile, ) for digestfile in entries ] )
+            results = pool.starmap(self.thread_function, [ (entries[i:i+self.task_limit], ) for i in range(0, len(entries), self.task_limit) ] )
             #for process in self.processes:
             #    process.join()
             #self.temp_path_store[:] = []
-        if len(results) > 0:
-            self.output_results.extend(results)
-        if len(self.output_results) > 250:
-            self.db_worker(results)
+            if len(results) > 0:
+                self.output_results.extend(results)
+            if len(self.output_results) > (self.process_limit * self.task_limit):
+                self.db_worker(self.output_results)
+                self.output_results.clear()
 
 
     # Function to get the number of open file descriptors
@@ -212,7 +235,10 @@ class DFScanner(metaclass=DFSingletonMeta):
             if (os.path.isdir(entry[0])):
                 self.entry = entry
                 self.log_statement(4, 'calling self.worker_function')
-                self.worker_function([ entry[0] + os.path.sep + sub for sub in entry[2] ])
+                self.enum_pool.extend([ entry[0] + os.path.sep + sub for sub in entry[2] ])
+            if len(self.enum_pool) > 50:
+                self.worker_function(self.enum_pool.copy())
+                self.enum_pool.clear()
 
         return self.hash_storage
 

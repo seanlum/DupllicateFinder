@@ -4,7 +4,7 @@ from DupllicateFinder.config import DFConfig
 from DupllicateFinder.util import DFLogger
 from DupllicateFinder.scan import DFScanner
 
-logger = DFLogger(2, output='stdout')
+logger = DFLogger(3, output='stdout')
 scanner = DFScanner(logger, 'sha1')
 duplicates_json = scanner.find_duplicates_json('/mnt')
 with open('output.json', 'w') as f:
