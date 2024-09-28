@@ -16,8 +16,12 @@ from DupllicateFinder.config import DFConfig
 from DupllicateFinder.util import DFSingletonMeta, DFLogger
 
 class DFScanner(metaclass=DFSingletonMeta):
-    def __init__(self, logger, hash_algorithm):
+    def __init__(self, logger, hash_algorithm, dbname=''):
         super().__init__()
+        if dbname != '':
+            self.dbname = dbname
+        else:
+            self.dbname = 'hashes.db'
         if (isinstance(logger, DFLogger)):
             self.logger = logger
         else:
@@ -160,11 +164,11 @@ class DFScanner(metaclass=DFSingletonMeta):
         return ( input_file_name, hash_ret_data )
 
     def db_worker(self, temp_store):
-        print('100==============================================')
+        print('==============================================')
         print(temp_store)
         self.log_statement(4, 'DB Worker lock')
         #self.lock.acquire()
-        with sqlite3.connect('hashes.db') as conn:
+        with sqlite3.connect(self.dbname) as conn:
             conn.execute('PRAGMA journal_mode=WAL;')
             conn.execute('CREATE TABLE IF NOT EXISTS paths (path TEXT PRIMARY KEY, hash_key TEXT);')
             count = conn.execute('SELECT COUNT(*) FROM paths').fetchone()[0]
@@ -175,12 +179,24 @@ class DFScanner(metaclass=DFSingletonMeta):
             query = 'INSERT OR IGNORE INTO paths (path, hash_key) VALUES (?, ?)'
             cursor.executemany(query, temp_store)
             self.log_statement(2, 'DB Worker: ' + str(len(temp_store)) + ' entries executed')
+            print('==============================================')
             #print('Wrote 100 DB Writes')
             conn.commit()
         # self.log_statement(4, 'DB Worker unlocking')
         # self.close_open_file_descriptors()
         # self.lock.release()
         # self.log_statement(4, 'DB Worker unlock')
+
+    def db_get_duplicates(self):
+        with sqlite3.connect(self.dbname) as conn:
+            conn.execute('PRAGMA journal_mode=WAL;')
+            conn.execute('CREATE TABLE IF NOT EXISTS paths (path TEXT PRIMARY KEY, hash_key TEXT);')
+            query = "SELECT hash_key, group_concat(path, '|') as path, COUNT(paths.hash_key) AS count_total FROM paths GROUP BY hash_key HAVING COUNT(hash_key) > 1 ORDER BY count_total DESC;"
+            cursor = conn.cursor()
+            cursor.execute(query)
+            results = cursor.fetchall()
+            out_results = [(item[0], item[1].split('|'), item[2]) for item in results]
+            return out_results
 
     def add_hash_storage_entry(self, hash_value, dir_entry_object):
         self.log_statement(4, 'self.add_hash_storage_entry')
@@ -220,6 +236,7 @@ class DFScanner(metaclass=DFSingletonMeta):
             if results:
                 print('Results')
                 out_results.extend(results)
+                print(out_results)
         return out_results
 
 
@@ -270,6 +287,9 @@ class DFScanner(metaclass=DFSingletonMeta):
                     self.db_worker(self.batch_pool.copy())
                     self.batch_pool = []
                 # self.db_worker(self.batch_pool)
+        if len(self.batch_pool) < self.temp_lim:
+            self.db_worker(self.batch_pool.copy())
+            self.batch_pool = []    
         return None
 
     def find_duplicates_json(self, directory_to_search):
