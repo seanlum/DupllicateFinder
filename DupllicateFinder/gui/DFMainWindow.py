@@ -11,8 +11,6 @@ from .DFResults import DFResults
 
 from PyQt5.QtWidgets import QMainWindow, QWidget, QGridLayout
 
-print(DFOptions)
-
 class DFMainWindow(QMainWindow):
     click_count = 0
     
